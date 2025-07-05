@@ -8,3 +8,4 @@ services:
     working_dir: /automation
     stdin_open: true
     tty: true
+    command: /bin/bash

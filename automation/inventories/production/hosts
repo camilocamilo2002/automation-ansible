@@ -4,12 +4,3 @@ R2 ansible_host=192.168.56.12
 R3 ansible_host=192.168.56.13
 
 
-[routers:vars] ##creacion de grupo "routers" 
-
-ansible_user=cisco
-ansible_password=cisco
-ansible_connection=network_cli
-ansible_network_os=cisco.ios.ios
-ansible_become=yes
-ansible_become_method=enable
-ansible_become_password=cisco

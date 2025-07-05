@@ -135,6 +135,9 @@
       register: ping_results_all_routers
 
     - name: Mostrar resultados de ping
+      loop: "{{ ping_results_all_routers.results }}"
+      loop_control:
+        label: "{{ item.invocation.module_args.commands[0] }}"
       debug:
         msg: >-
           Ping desde {{ inventory_hostname }} hacia {{ item.invocation.module_args.commands[0].split(' ')[1] }}:
@@ -146,6 +149,3 @@
           {% else %}
             ⚠️ Resultado inesperado – {{ resumen }}
           {% endif %}
-      loop: "{{ ping_results_all_routers.results }}"
-      loop_control:
-        label: "{{ item.invocation.module_args.commands[0] | default('Ping desconocido') }}"
