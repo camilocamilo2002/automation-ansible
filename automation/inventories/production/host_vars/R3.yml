@@ -17,13 +17,21 @@ tunnel1_source: "172.16.0.10"
 tunnel1_destination: "172.16.0.6"
 
 crypto_peers:
-  - { seq: 10, ip: "172.16.0.1", acl: 110 }
-  - { seq: 20, ip: "172.16.0.6", acl: 120 }
+  - { seq: 10, ip: "172.16.0.1", acl: 110, map_tag: "MYMAP_R1" }
+  - { seq: 20, ip: "172.16.0.6", acl: 120, map_tag: "MYMAP_R2" }
 
 gre_acls:
   - { acl: 110, src: "10.10.3.3", dst: "10.10.1.1" }
   - { acl: 120, src: "10.10.3.3", dst: "10.10.2.2" }
 
 crypto_interfaces:
-  - "GigabitEthernet0/1"
-  - "GigabitEthernet0/2"
+  - { name: "GigabitEthernet0/1", map_tag: "MYMAP_R1" }
+  - { name: "GigabitEthernet0/2", map_tag: "MYMAP_R2" }
+
+static_routes:
+  - ip route 10.10.1.1 255.255.255.255 Tunnel0
+  - ip route 10.10.2.2 255.255.255.255 Tunnel1
+
+ping_targets:
+  - 10.10.1.1
+  - 10.10.2.2

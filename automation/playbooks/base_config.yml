@@ -2,6 +2,7 @@
 - name: Configuración Base, Túneles GRE/IPSec y Verificación de Cisco IOSv
   hosts: routers
   gather_facts: no
+
   tasks:
 
     - name: Configurar hostname de forma idempotente
@@ -29,50 +30,29 @@
           - ip address {{ lo.address }} {{ lo.mask }}
           - no shutdown
 
-    - name: Configurar túnel Tunnel0
-      block:
-        - name: Crear interfaz Tunnel0
-          cisco.ios.ios_config:
-            parents: ["interface Tunnel0"]
-            lines:
-              - ip address {{ tunnel0_ip }} {{ tunnel0_mask }}
-              - tunnel source {{ tunnel0_source }}
-              - tunnel destination {{ tunnel0_destination }}
-              - tunnel mode gre ip
-              - no shutdown
-      rescue:
-        - name: Mostrar error de configuración Tunnel0
-          debug:
-            msg: "Error al configurar Tunnel0 en {{ inventory_hostname }}"
-      always:
-        - debug:
-            msg: "Finalizó la configuración de Tunnel0 en {{ inventory_hostname }}"
+    - name: Crear interfaz Tunnel0
+      cisco.ios.ios_config:
+        parents: ["interface Tunnel0"]
+        lines:
+          - ip address {{ tunnel0_ip }} {{ tunnel0_mask }}
+          - tunnel source {{ tunnel0_source }}
+          - tunnel destination {{ tunnel0_destination }}
+          - tunnel mode gre ip
+          - no shutdown
 
-    - name: Configurar túnel Tunnel1
-      block:
-        - name: Crear interfaz Tunnel1
-          cisco.ios.ios_config:
-            parents: ["interface Tunnel1"]
-            lines:
-              - ip address {{ tunnel1_ip }} {{ tunnel1_mask }}
-              - tunnel source {{ tunnel1_source }}
-              - tunnel destination {{ tunnel1_destination }}
-              - tunnel mode gre ip
-              - no shutdown
-      rescue:
-        - name: Mostrar error de configuración Tunnel1
-          debug:
-            msg: "Error al configurar Tunnel1 en {{ inventory_hostname }}"
-      always:
-        - debug:
-            msg: "Finalizó la configuración de Tunnel1 en {{ inventory_hostname }}"
+    - name: Crear interfaz Tunnel1
+      cisco.ios.ios_config:
+        parents: ["interface Tunnel1"]
+        lines:
+          - ip address {{ tunnel1_ip }} {{ tunnel1_mask }}
+          - tunnel source {{ tunnel1_source }}
+          - tunnel destination {{ tunnel1_destination }}
+          - tunnel mode gre ip
+          - no shutdown
 
     - name: Configurar rutas estáticas hacia los loopbacks remotos
-      when: inventory_hostname == 'R1'
       cisco.ios.ios_config:
-        lines:
-          - ip route 10.10.2.2 255.255.255.255 Tunnel0
-          - ip route 10.10.3.3 255.255.255.255 Tunnel1
+        lines: "{{ static_routes }}"
 
     - name: Crear transform-set IPsec
       cisco.ios.ios_config:
@@ -100,7 +80,7 @@
       loop_control:
         loop_var: peer
       cisco.ios.ios_config:
-        parents: ["crypto map MYMAP {{ peer.seq }} ipsec-isakmp"]
+        parents: ["crypto map {{ peer.map_tag }} {{ peer.seq }} ipsec-isakmp"]
         lines:
           - set peer {{ peer.ip }}
           - set transform-set MYSET
@@ -119,9 +99,9 @@
       loop_control:
         loop_var: iface
       cisco.ios.ios_config:
-        parents: ["interface {{ iface }}"]
+        parents: ["interface {{ iface.name }}"]
         lines:
-          - crypto map MYMAP
+          - crypto map {{ iface.map_tag }}
           - no shutdown
 
     - name: Verificar estado de interfaces de túnel
@@ -145,15 +125,27 @@
       debug:
         msg: "Estado de IPSec en {{ inventory_hostname }}: {{ ipsec_sa.stdout }}"
 
-    - name: Verificar conectividad entre routers desde R1 (pings)
-      when: inventory_hostname == 'R1'
+    - name: Verificar conectividad a todos los loopbacks remotos (pings)
+      loop: "{{ ping_targets }}"
+      loop_control:
+        loop_var: target_ip
       ios_command:
         commands:
-          - ping 10.10.2.2 repeat 3
-          - ping 10.10.3.3 repeat 3
-      register: ping_result
+          - "ping {{ target_ip }} repeat 3"
+      register: ping_results_all_routers
 
-    - name: Mostrar resultado de ping
-      when: inventory_hostname == 'R1'
+    - name: Mostrar resultados de ping
       debug:
-        msg: "Ping desde R1: {{ ping_result.stdout_lines }}"
+        msg: >-
+          Ping desde {{ inventory_hostname }} hacia {{ item.invocation.module_args.commands[0].split(' ')[1] }}:
+          {% set resumen = item.stdout_lines[0] | join(' ') %}
+          {% if 'Success rate is 100 percent' in resumen %}
+            ✅ Éxito – {{ resumen }}
+          {% elif 'Success rate is 0 percent' in resumen %}
+            ❌ Falló – {{ resumen }}
+          {% else %}
+            ⚠️ Resultado inesperado – {{ resumen }}
+          {% endif %}
+      loop: "{{ ping_results_all_routers.results }}"
+      loop_control:
+        label: "{{ item.invocation.module_args.commands[0] | default('Ping desconocido') }}"
