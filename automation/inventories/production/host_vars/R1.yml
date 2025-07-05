@@ -1,0 +1,29 @@
+interfaces:
+  - { name: "GigabitEthernet0/0", address: "192.168.56.11", mask: "255.255.255.0" }
+  - { name: "GigabitEthernet0/1", address: "172.16.0.1", mask: "255.255.255.252" }
+  - { name: "GigabitEthernet0/2", address: "172.16.0.9", mask: "255.255.255.252" }
+
+loopbacks:
+  - { name: "Loopback0", address: "10.10.1.1", mask: "255.255.255.255" }
+
+tunnel0_ip: "192.168.1.1"
+tunnel0_mask: "255.255.255.252"
+tunnel0_source: "172.16.0.1"
+tunnel0_destination: "172.16.0.2"
+
+tunnel1_ip: "192.168.2.1"
+tunnel1_mask: "255.255.255.252"
+tunnel1_source: "172.16.0.9"
+tunnel1_destination: "172.16.0.10"
+
+crypto_peers:
+  - { seq: 10, ip: "172.16.0.2", acl: 110 }
+  - { seq: 20, ip: "172.16.0.10", acl: 120 }
+
+gre_acls:
+  - { acl: 110, src: "10.10.1.1", dst: "10.10.2.2" }
+  - { acl: 120, src: "10.10.1.1", dst: "10.10.3.3" }
+
+crypto_interfaces:
+  - "GigabitEthernet0/1"
+  - "GigabitEthernet0/2"

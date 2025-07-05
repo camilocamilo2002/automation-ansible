@@ -1,0 +1,49 @@
+---
+- name: Verificación de túneles GRE/IPSec y conectividad
+  hosts: routers
+  gather_facts: no
+
+  tasks:
+    - name: Verificar estado de interfaces Tunnel0 y Tunnel1
+      ios_command:
+        commands:
+          - show interface Tunnel0
+          - show interface Tunnel1
+      register: tunnel_interfaces
+
+    - name: Mostrar estado de interfaces de túnel
+      debug:
+        msg: "Estado de túneles en {{ inventory_hostname }}:\n{{ tunnel_interfaces.stdout }}"
+
+    - name: Verificar estado de ISAKMP
+      ios_command:
+        commands:
+          - show crypto isakmp sa
+      register: isakmp_state
+
+    - name: Mostrar estado de ISAKMP
+      debug:
+        msg: "ISAKMP en {{ inventory_hostname }}:\n{{ isakmp_state.stdout[0] }}"
+
+    - name: Verificar estado de IPSec
+      ios_command:
+        commands:
+          - show crypto ipsec sa
+      register: ipsec_state
+
+    - name: Mostrar estado de IPSec
+      debug:
+        msg: "IPSec en {{ inventory_hostname }}:\n{{ ipsec_state.stdout[0] }}"
+
+    - name: Probar conectividad entre routers (Loopback)
+      ios_command:
+        commands:
+          - ping 10.10.2.2 repeat 3
+          - ping 10.10.3.3 repeat 3
+      when: inventory_hostname == "R1"
+      register: ping_r1
+
+    - name: Mostrar resultado de ping desde R1
+      debug:
+        msg: "Ping desde R1:\n{{ ping_r1.stdout }}"
+      when: inventory_hostname == "R1"

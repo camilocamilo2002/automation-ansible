@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  ansible:
+    build: .
+    container_name: ansible-controller
+    volumes:
+      - ./automation:/automation
+    working_dir: /automation
+    stdin_open: true
+    tty: true

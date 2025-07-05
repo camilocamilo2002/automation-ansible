@@ -1,0 +1,159 @@
+---
+- name: Configuración Base, Túneles GRE/IPSec y Verificación de Cisco IOSv
+  hosts: routers
+  gather_facts: no
+  tasks:
+
+    - name: Configurar hostname de forma idempotente
+      cisco.ios.ios_config:
+        lines:
+          - hostname {{ inventory_hostname }}
+
+    - name: Configurar interfaces con dirección IP
+      loop: "{{ interfaces }}"
+      loop_control:
+        loop_var: iface
+      cisco.ios.ios_config:
+        parents: ["interface {{ iface.name }}"]
+        lines:
+          - ip address {{ iface.address }} {{ iface.mask }}
+          - no shutdown
+
+    - name: Configurar interfaces Loopback
+      loop: "{{ loopbacks }}"
+      loop_control:
+        loop_var: lo
+      cisco.ios.ios_config:
+        parents: ["interface {{ lo.name }}"]
+        lines:
+          - ip address {{ lo.address }} {{ lo.mask }}
+          - no shutdown
+
+    - name: Configurar túnel Tunnel0
+      block:
+        - name: Crear interfaz Tunnel0
+          cisco.ios.ios_config:
+            parents: ["interface Tunnel0"]
+            lines:
+              - ip address {{ tunnel0_ip }} {{ tunnel0_mask }}
+              - tunnel source {{ tunnel0_source }}
+              - tunnel destination {{ tunnel0_destination }}
+              - tunnel mode gre ip
+              - no shutdown
+      rescue:
+        - name: Mostrar error de configuración Tunnel0
+          debug:
+            msg: "Error al configurar Tunnel0 en {{ inventory_hostname }}"
+      always:
+        - debug:
+            msg: "Finalizó la configuración de Tunnel0 en {{ inventory_hostname }}"
+
+    - name: Configurar túnel Tunnel1
+      block:
+        - name: Crear interfaz Tunnel1
+          cisco.ios.ios_config:
+            parents: ["interface Tunnel1"]
+            lines:
+              - ip address {{ tunnel1_ip }} {{ tunnel1_mask }}
+              - tunnel source {{ tunnel1_source }}
+              - tunnel destination {{ tunnel1_destination }}
+              - tunnel mode gre ip
+              - no shutdown
+      rescue:
+        - name: Mostrar error de configuración Tunnel1
+          debug:
+            msg: "Error al configurar Tunnel1 en {{ inventory_hostname }}"
+      always:
+        - debug:
+            msg: "Finalizó la configuración de Tunnel1 en {{ inventory_hostname }}"
+
+    - name: Configurar rutas estáticas hacia los loopbacks remotos
+      when: inventory_hostname == 'R1'
+      cisco.ios.ios_config:
+        lines:
+          - ip route 10.10.2.2 255.255.255.255 Tunnel0
+          - ip route 10.10.3.3 255.255.255.255 Tunnel1
+
+    - name: Crear transform-set IPsec
+      cisco.ios.ios_config:
+        parents: ["crypto ipsec transform-set MYSET esp-aes esp-sha-hmac"]
+        lines:
+          - mode transport
+
+    - name: Crear política ISAKMP
+      cisco.ios.ios_config:
+        parents: ["crypto isakmp policy 10"]
+        lines:
+          - encr aes
+          - hash sha
+          - authentication pre-share
+          - group 2
+          - lifetime 86400
+
+    - name: Definir clave ISAKMP compartida
+      cisco.ios.ios_config:
+        lines:
+          - crypto isakmp key cisco123 address 0.0.0.0 0.0.0.0
+
+    - name: Crear Crypto Map con peers
+      loop: "{{ crypto_peers }}"
+      loop_control:
+        loop_var: peer
+      cisco.ios.ios_config:
+        parents: ["crypto map MYMAP {{ peer.seq }} ipsec-isakmp"]
+        lines:
+          - set peer {{ peer.ip }}
+          - set transform-set MYSET
+          - match address {{ peer.acl }}
+
+    - name: Crear access-lists para tráfico GRE protegido
+      loop: "{{ gre_acls }}"
+      loop_control:
+        loop_var: gre
+      cisco.ios.ios_config:
+        lines:
+          - access-list {{ gre.acl }} permit gre host {{ gre.src }} host {{ gre.dst }}
+
+    - name: Aplicar Crypto Map a interfaces físicas
+      loop: "{{ crypto_interfaces }}"
+      loop_control:
+        loop_var: iface
+      cisco.ios.ios_config:
+        parents: ["interface {{ iface }}"]
+        lines:
+          - crypto map MYMAP
+          - no shutdown
+
+    - name: Verificar estado de interfaces de túnel
+      ios_command:
+        commands:
+          - show interface Tunnel0
+          - show interface Tunnel1
+      register: tunnel_status
+
+    - name: Mostrar estado de túneles
+      debug:
+        msg: "Estado de túneles en {{ inventory_hostname }}: {{ tunnel_status.stdout_lines }}"
+
+    - name: Verificar estado de IPSec SA
+      ios_command:
+        commands:
+          - show crypto ipsec sa
+      register: ipsec_sa
+
+    - name: Mostrar estado de IPSec
+      debug:
+        msg: "Estado de IPSec en {{ inventory_hostname }}: {{ ipsec_sa.stdout }}"
+
+    - name: Verificar conectividad entre routers desde R1 (pings)
+      when: inventory_hostname == 'R1'
+      ios_command:
+        commands:
+          - ping 10.10.2.2 repeat 3
+          - ping 10.10.3.3 repeat 3
+      register: ping_result
+
+    - name: Mostrar resultado de ping
+      when: inventory_hostname == 'R1'
+      debug:
+        msg: "Ping desde R1: {{ ping_result.stdout_lines }}"

@@ -1,0 +1,14 @@
+cat <<EOF > .gitignore
+__pycache__/
+*.pyc
+*.log
+*.bak
+*.swp
+.env
+.envrc
+*.retry
+*.tar.gz
+*.zip
+secrets.yml
+vault_password.txt
+EOF
