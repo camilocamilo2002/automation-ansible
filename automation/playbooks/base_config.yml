@@ -65,6 +65,11 @@
           - lifetime 86400
         parents: crypto isakmp policy 10
 
+    - name: Configurar transform-set IPSec
+      cisco.ios.ios_config:
+        lines:
+          - crypto ipsec transform-set MYSET esp-aes esp-sha-hmac
+
     - name: Crear mapas de cifrado y asociarlos
       cisco.ios.ios_config:
         lines: |
