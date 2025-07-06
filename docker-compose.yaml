@@ -1,11 +1,12 @@
-version: "3.9"
+
+# docker-compose.yaml
+version: '3.8'
+
 services:
   ansible:
     build: .
-    container_name: ansible-controller
     volumes:
       - ./automation:/automation
     working_dir: /automation
-    stdin_open: true
-    tty: true
-    command: /bin/bash
+    environment:
+      - ANSIBLE_CONFIG=/automation/ansible.cfg
