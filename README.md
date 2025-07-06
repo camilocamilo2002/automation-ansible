@@ -56,4 +56,4 @@ docker-compose up -d
 docker exec -it ansible-controller ansible-playbook automation/playbooks/base_config.yml -i automation/inventories/production/hosts
 
 #Ejecutar el playbook de configuración
-docker-compose run --rm ansible playbooks/base_config.yml
+docker-compose run --rm ansible ansible-playbook playbooks/base_config.yml
