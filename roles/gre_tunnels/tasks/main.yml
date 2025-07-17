@@ -1,0 +1,37 @@
+---
+- name: Bloque de configuración de túneles GRE
+  block:
+    - name: Configurar interfaz de túnel
+      ansible.legacy.ios_config:
+        parents: "interface {{ tunnel_config.name }}"
+        lines: "{{ tunnel_config.lines }}"
+        match: exact
+      loop_control:
+        loop_var: tunnel_config
+      loop: "{{ tunnel_configs | selectattr('hostname', 'equalto', inventory_hostname) | list }}"
+      register: gre_config_output
+      # Añadir una condición para considerar fallida la tarea si se detectan errores en la salida
+      failed_when: "'Invalid input' in gre_config_output.stderr | default('') or 'incomplete command' in gre_config_output.stderr | default('')"
+
+  rescue:
+    - name: Manejo de errores - Fallo en la configuración de GRE
+      ansible.builtin.debug:
+        msg: "ERROR: Fallo al configurar un túnel GRE en {{ inventory_hostname }}. Revisa las variables y la conectividad. Detalles: {{ gre_config_output | default('N/A') }}"
+      # Aquí podrías añadir un mensaje específico o una acción de registro.
+
+  always:
+    - name: Verificar estado del túnel GRE configurado (siempre)
+      ansible.legacy.ios_command:
+        commands: "show ip interface brief {{ tunnel_config.name }}"
+      loop_control:
+        loop_var: tunnel_config
+      loop: "{{ tunnel_configs | selectattr('hostname', 'equalto', inventory_hostname) | list }}"
+      register: gre_interface_status
+      # Esta tarea se ejecuta siempre para verificar el estado final de las interfaces configuradas.
+    - name: Mostrar estado de la interfaz GRE
+      ansible.builtin.debug:
+        msg: "Estado de la interfaz {{ item.tunnel_config.name }}: {{ item.stdout_lines[0] | default('No info') }}"
+      loop: "{{ gre_interface_status.results }}"
+      loop_control:
+        loop_var: item
+      when: item is success

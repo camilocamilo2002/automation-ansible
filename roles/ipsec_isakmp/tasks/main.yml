@@ -1,0 +1,38 @@
+---
+- name: Bloque de configuración ISAKMP
+  block:
+    - name: Configurar política ISAKMP
+      ansible.legacy.ios_config:
+        lines:
+          - "crypto isakmp policy 10"
+          - " encr aes 256"
+          - " authentication pre-share"
+          - " group 5"
+      register: isakmp_policy_output
+      failed_when: "'Invalid input' in isakmp_policy_output.stderr | default('')"
+
+    - name: Configurar claves ISAKMP dinámicamente
+      ansible.legacy.ios_config:
+        lines:
+          - "crypto isakmp key {{ ipsec_key }} address {{ item.address }}"
+      loop_control:
+        loop_var: item
+      loop: "{{ isakmp_keys_config | selectattr('hostname', 'equalto', inventory_hostname) | list }}"
+      register: isakmp_key_output
+      failed_when: "'Invalid input' in isakmp_key_output.stderr | default('')"
+
+  rescue:
+    - name: Manejo de errores - Fallo en la configuración ISAKMP
+      ansible.builtin.debug:
+        msg: "ERROR: Fallo al configurar ISAKMP en {{ inventory_hostname }}. Detalles: {{ isakmp_key_output | default('N/A') }}"
+      # Aquí podrías añadir acciones de registro o notificación.
+
+  always:
+    - name: Verificar configuración ISAKMP (siempre)
+      ansible.legacy.ios_command:
+        commands: "show crypto isakmp policy"
+      register: isakmp_show_policy
+    - name: Mostrar estado de la política ISAKMP
+      ansible.builtin.debug:
+        msg: "Configuración ISAKMP en {{ inventory_hostname }}: {{ isakmp_show_policy.stdout_lines | default('No info') }}"
+      when: isakmp_show_policy is success

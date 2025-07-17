@@ -1,0 +1,54 @@
+---
+- name: Configurar VPN IPSec/GRE Full-Mesh
+  hosts: routers
+  gather_facts: no
+  connection: network_cli
+
+  tasks:
+    - name: Configuración principal de VPN y OSPF
+      block:
+        - name: Incluir rol para configuraciones ISAKMP
+          ansible.builtin.include_role:
+            name: ipsec_isakmp
+
+        - name: Incluir rol para configuraciones IPSec Profile y Transform-Set
+          ansible.builtin.include_role:
+            name: ipsec_profile
+
+        - name: Incluir rol para configuraciones de túneles GRE
+          ansible.builtin.include_role:
+            name: gre_tunnels
+
+        - name: Incluir rol para configuración OSPF
+          ansible.builtin.include_role:
+            name: ospf
+
+        # Puedes añadir una tarea de verificación aquí que, si falla, active el rescue
+        - name: Verificar estado de túneles GRE (siempre)
+          ansible.legacy.ios_command:
+            commands: "show ip interface brief | include Tunnel"
+          register: tunnel_status_output
+          failed_when: "'down' in tunnel_status_output.stdout or 'administratively down' in tunnel_status_output.stdout"
+          # Aquí podrías añadir una lógica más compleja para validar la conectividad
+
+      rescue:
+        - name: Manejo de errores - La configuración falló
+          ansible.builtin.debug:
+            msg: "¡Advertencia! Se detectó un error durante la configuración de la VPN/OSPF en {{ inventory_hostname }}. Revisar logs."
+          # Aquí podrías añadir tareas para:
+          # - Enviar notificaciones a un sistema de monitoreo (Slack, email)
+          # - Revertir configuraciones (con precaución)
+          # - Recopilar más logs para depuración
+
+      always:
+        - name: Guardar configuración (siempre)
+          ansible.legacy.ios_config:
+            save_when: always
+          # Se usó 'always' para asegurar que el guardado se intente
+          # incluso si las tareas de configuración fallan o la recuperación se activa.
+          # Considera si este es el comportamiento deseado en caso de fallos graves.
+
+        - name: Mostrar estado final (opcional, para depuración)
+          ansible.builtin.debug:
+            msg: "Proceso de configuración finalizado para {{ inventory_hostname }}. El estado del bloque es: {{ ansible_play_batch | default([]) | length > 0 and 'ok' or 'failed' }}" # Este es un ejemplo simplificado.
+          # Se puede usar 'ansible_failed_result' para obtener el resultado del fallo, si aplica.

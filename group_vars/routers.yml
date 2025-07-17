@@ -1,0 +1,101 @@
+---
+# Variables globales para todos los routers
+ipsec_key: "CISCO123"
+ansible_network_os: cisco.ios.ios
+ansible_connection: network_cli
+ansible_user: admin
+ansible_password: 123456
+ansible_become: yes
+ansible_become_method: enable
+ansible_become_password: camilo1234
+
+
+# Configuración de claves ISAKMP por router
+isakmp_keys_config:
+  - { hostname: 'R1', address: '10.0.0.2' } # Clave para R2 en R1
+  - { hostname: 'R1', address: '30.0.0.1' } # Clave para R3 en R1
+  - { hostname: 'R2', address: '10.0.0.1' } # Clave para R1 en R2
+  - { hostname: 'R2', address: '20.0.0.2' } # Clave para R3 en R2
+  - { hostname: 'R3', address: '30.0.0.2' } # Clave para R1 en R3
+  - { hostname: 'R3', address: '20.0.0.1' } # Clave para R2 en R3
+
+# Configuración de túneles GRE por router
+tunnel_configs:
+  # Túneles para R1
+  - name: Tunnel1
+    hostname: R1
+    lines:
+      - "description Tunnel to R2"
+      - "ip address 172.15.1.1 255.255.255.252"
+      - "tunnel source GigabitEthernet0/1"
+      - "tunnel destination 10.0.0.2"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+  - name: Tunnel2
+    hostname: R1
+    lines:
+      - "description Tunnel to R3"
+      - "ip address 172.15.2.1 255.255.255.252"
+      - "tunnel source GigabitEthernet0/3"
+      - "tunnel destination 30.0.0.1"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+  # Túneles para R2
+  - name: Tunnel1
+    hostname: R2
+    lines:
+      - "description Tunnel to R1"
+      - "ip address 172.15.1.2 255.255.255.252"
+      - "tunnel source GigabitEthernet0/1"
+      - "tunnel destination 10.0.0.1"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+  - name: Tunnel3
+    hostname: R2
+    lines:
+      - "description Tunnel to R3"
+      - "ip address 172.15.3.1 255.255.255.252"
+      - "tunnel source GigabitEthernet0/2"
+      - "tunnel destination 20.0.0.2"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+  # Túneles para R3
+  - name: Tunnel2
+    hostname: R3
+    lines:
+      - "description Tunnel to R1"
+      - "ip address 172.15.2.2 255.255.255.252"
+      - "tunnel source GigabitEthernet0/3"
+      - "tunnel destination 30.0.0.2"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+  - name: Tunnel3
+    hostname: R3
+    lines:
+      - "description Tunnel to R2"
+      - "ip address 172.15.3.2 255.255.255.252"
+      - "tunnel source GigabitEthernet0/2"
+      - "tunnel destination 20.0.0.1"
+      - "tunnel protection ipsec profile GRE-PROFILE"
+
+# Configuración de OSPF por router
+ospf_networks_config:
+  - hostname: 'R1'
+    networks:
+      # Ordenado numéricamente y con espacio inicial, según la práctica común de Cisco
+      - " network 10.0.0.0 0.0.0.3 area 0"
+      - " network 30.0.0.0 0.0.0.3 area 0"
+      - " network 172.15.1.0 0.0.0.3 area 0"
+      - " network 172.15.2.0 0.0.0.3 area 0"
+      - " network 192.168.56.0 0.0.0.255 area 0"
+  - hostname: 'R2'
+    networks:
+      # Ordenado numéricamente y con espacio inicial
+      - " network 10.0.0.0 0.0.0.3 area 0"
+      - " network 20.0.0.0 0.0.0.3 area 0"
+      - " network 172.15.1.0 0.0.0.3 area 0"
+      - " network 172.15.3.0 0.0.0.3 area 0"
+      - " network 192.168.56.0 0.0.0.255 area 0"
+  - hostname: 'R3'
+    networks:
+      # Ordenado numéricamente y con espacio inicial (basado en la salida de R3)
+      - " network 20.0.0.0 0.0.0.3 area 0"
+      - " network 30.0.0.0 0.0.0.3 area 0"
+      - " network 172.15.2.0 0.0.0.3 area 0"
+      - " network 172.15.3.0 0.0.0.3 area 0"
+      - " network 192.168.56.0 0.0.0.255 area 0"

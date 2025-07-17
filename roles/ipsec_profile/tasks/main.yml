@@ -1,0 +1,34 @@
+---
+- name: Bloque de configuración de perfil IPSec
+  block:
+    - name: Configurar transform-set IPSec
+      ansible.legacy.ios_config:
+        lines:
+          - "crypto ipsec transform-set GRE-TRANSFORM esp-aes 256 esp-sha-hmac"
+          - " mode transport"
+      register: transform_set_output
+      failed_when: "'Invalid input' in transform_set_output.stderr | default('')"
+
+    - name: Configurar perfil IPSec
+      ansible.legacy.ios_config:
+        lines:
+          - "crypto ipsec profile GRE-PROFILE"
+          - " set transform-set GRE-TRANSFORM"
+      register: ipsec_profile_output
+      failed_when: "'Invalid input' in ipsec_profile_output.stderr | default('')"
+
+  rescue:
+    - name: Manejo de errores - Fallo en la configuración del perfil IPSec
+      ansible.builtin.debug:
+        msg: "ERROR: Fallo al configurar el perfil IPSec en {{ inventory_hostname }}. Detalles: {{ ipsec_profile_output | default('N/A') }}"
+      # Aquí podrías añadir acciones de registro o notificación.
+
+  always:
+    - name: Verificar perfil IPSec configurado (siempre)
+      ansible.legacy.ios_command:
+        commands: "show crypto ipsec profile"
+      register: ipsec_show_profile
+    - name: Mostrar estado del perfil IPSec
+      ansible.builtin.debug:
+        msg: "Configuración de perfil IPSec en {{ inventory_hostname }}: {{ ipsec_show_profile.stdout_lines | default('No info') }}"
+      when: ipsec_show_profile is success
